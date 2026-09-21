@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Scanner - ESP32 Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-slate-900">
+    <header class="sticky top-0 z-50 w-full">
+        <div id="nav"></div>
+    </header>
+
+    <!-- Header nhỏ gọn -->
+    <header class="text-center mt-6 mb-4 max-w-2xl mx-auto px-4">
+        <h1 class="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-400 to-blue-500 tracking-wide mb-1">
+            Trung Tâm Dò Tìm Thiết Bị
+        </h1>
+        <p class="text-slate-400 text-xs md:text-sm">
+            Tự động phát hiện các mạng WiFi Robot AP ở gần hoặc quét Robot trong mạng LAN.
+        </p>
+    </header>
+
+    <!-- ================= MAIN CONTENT ================= -->
+    <main class="max-w-4xl w-full mx-auto flex flex-col gap-6 flex-1 mb-10 px-4">
+
+        <!-- CARD 1: KẾT NỐI NHANH ROBOT ĐANG PHÁT AP -->
+        <section class="bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl border border-slate-700/80 shadow-2xl">
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-700/50 pb-4 mb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-cyan-400 flex items-center gap-2">
+                        <span class="flex h-2.5 w-2.5 relative">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                        </span>
+                        Robot Ở Chế Độ Phát AP (Chưa Kết Nối WiFi)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Dành cho Robot vừa bật nguồn, đang phát Wi-Fi dạng <code class="text-cyan-300 font-mono">Robot-XXXXXX</code></p>
+                </div>
+                <a href="http://192.168.4.1" target="_blank" class="px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 transition-all rounded-xl font-bold text-xs text-white shadow-lg shadow-cyan-900/30 flex items-center gap-2 whitespace-nowrap">
+                    🚀 Vào IP Mặc Định (192.168.4.1)
+                </a>
+            </div>
+
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700/50 text-xs text-slate-300 leading-relaxed">
+                <p class="font-semibold text-slate-200 mb-1">💡 Hướng dẫn kết nối nhanh:</p>
+                <ol class="list-decimal list-inside space-y-1 text-slate-400">
+                    <li>Bật Wi-Fi trên Điện thoại / Máy tính của bạn.</li>
+                    <li>Tìm mạng Wi-Fi tên bắt đầu bằng <strong class="text-cyan-400">Robot-...</strong> và kết nối vào đó.</li>
+                    <li>Nút bấm phía trên sẽ đưa bạn thẳng tới trang cấu hình WiFi cho xe.</li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- CARD 2: DÒ ROBOT TRONG CÙNG MẠNG LAN / WIFI -->
+        <section class="bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl border border-slate-700/80 shadow-2xl flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-700/50 pb-4">
+                <div>
+                    <h2 class="text-lg font-bold text-emerald-400 flex items-center gap-2">
+                        <span>🔍</span> Dò Tìm Robot Trong Mạng Nội Bộ (LAN)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Tự động quét dải IP <span id="ipRangeText" class="font-mono text-slate-300">192.168.1.x</span> để tìm các Robot đang Online</p>
+                </div>
+                <button id="scanBtn" onclick="startScanLAN()" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 transition-all rounded-xl font-bold text-xs text-white shadow-lg shadow-emerald-900/30 flex items-center gap-2">
+                    <span id="scanIcon">⚡</span> <span id="scanBtnText">Bắt Đầu Quét LAN</span>
+                </button>
+            </div>
+
+            <!-- Thanh tiến trình quét -->
+            <div id="progressContainer" class="hidden flex-col gap-1.5">
+                <div class="flex justify-between text-xs font-mono text-slate-400">
+                    <span id="scanStatusText">Đang quét: 192.168.1.1</span>
+                    <span id="scanPercentText">0%</span>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700">
+                    <div id="progressBar" class="bg-gradient-to-r from-cyan-500 to-emerald-400 h-2 rounded-full transition-all duration-75" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Danh sách Robot tìm thấy -->
+            <div class="mt-2">
+                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Danh Sách Robot Phát Hiện Được:</h3>
+                
+                <div id="robotList" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <!-- Trạng thái trống (Placeholder) -->
+                    <div id="emptyState" class="col-span-full py-8 text-center text-slate-500 border border-dashed border-slate-700 rounded-xl">
+                        <svg class="w-12 h-12 mx-auto mb-2 opacity-30 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <p class="text-xs">Chưa thực hiện quét hoặc chưa tìm thấy Robot nào.</p>
+                        <p class="text-[11px] text-slate-600 mt-1">Bấm nút "Bắt Đầu Quét LAN" ở trên để quét mạng.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="footer"></div>
+
+    <div class="fixed bottom-6 right-6 z-50">
+        <button onclick="toggleGuideModal(true)" class="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-4 py-3 rounded-full shadow-2xl shadow-cyan-500/40 hover:scale-105 active:scale-95 transition-all font-bold text-xs md:text-sm border border-cyan-400/30 group">
+            <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-black">?</span>
+            <span class="hidden md:inline">Hướng Dẫn Kết Nối</span>
+        </button>
+    </div>
+
+    <div id="guideModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm hidden transition-opacity duration-200">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="toggleGuideModal(false)" class="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            <div class="flex items-center gap-3 border-b border-slate-800 pb-4 mb-4">
+                <div class="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20 text-xl">
+                    📖
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">Hướng Dẫn Kết Nối Robot</h3>
+                    <p class="text-xs text-slate-400">Các bước cài đặt Wi-Fi và dò tìm Robot</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 text-xs md:text-sm text-slate-300">
+                <div class="flex items-start gap-3 p-2.5 bg-slate-800/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs border border-cyan-500/30">1</span>
+                    <p><strong class="text-white">B1:</strong> Tìm mạng Wi-Fi của robot có tên dạng <code class="bg-slate-950 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/30 font-mono">Robot-.....</code> và kết nối vào.</p>
+                </div>
+
+                <div class="flex items-start gap-3 p-2.5 bg-slate-800/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs border border-cyan-500/30">2</span>
+                    <p><strong class="text-white">B2:</strong> Sau khi kết nối, mở trình duyệt truy cập vào địa chỉ IP <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 underline font-mono font-bold">192.168.4.1</a></p>
+                </div>
+
+                <div class="flex items-start gap-3 p-2.5 bg-slate-800/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs border border-cyan-500/30">3</span>
+                    <p><strong class="text-white">B3:</strong> Nhập tên Wi-Fi nhà/điện thoại và đúng mật khẩu để cập nhật cấu hình mạng cho Robot.</p>
+                </div>
+
+                <div class="flex items-start gap-3 p-2.5 bg-slate-800/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs border border-cyan-500/30">4</span>
+                    <p><strong class="text-white">B4:</strong> Chuyển thiết bị (Điện thoại/Máy tính) truy cập lại vào <strong class="text-white">cùng mạng Wi-Fi</strong> mà bạn vừa cài cho Robot.</p>
+                </div>
+
+                <div class="flex items-start gap-3 p-2.5 bg-slate-800/50 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
+                    <span class="flex-shrink-0 w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-400 font-bold flex items-center justify-center text-xs border border-cyan-500/30">5</span>
+                    <p><strong class="text-white">B5:</strong> Bấm nút <strong class="text-cyan-400">"Bắt Đầu Quét LAN"</strong> trên trang này để hệ thống tự dò tìm IP mới của Robot.</p>
+                </div>
+            </div>
+
+            <div class="mt-5 pt-3 border-t border-slate-800 text-right">
+                <button onclick="toggleGuideModal(false)" class="w-full md:w-auto px-5 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold rounded-xl text-xs transition-all border border-slate-700">
+                    Đã Hiểu ➔
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hiện modal hướng dẫn -->
+    <script>
+        function toggleGuideModal(show) {
+            const modal = document.getElementById('guideModal');
+            if (show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+    </script>
+
+    <script src="./js/Scanner.js"></script>
+    <script src="./components/navbar.js"></script>
+    <script src="./components/footer.js"></script>
+</body>
+</html>
